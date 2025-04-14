@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ deploymentName }} 
+  namespace: {{ namespace }}
+  labels: 
+    {% for k, v in labels.items() %}
+      {{ k }}: {{ v }}
+    {% endfor %}
+  {% if annotations %}
+  annotations: 
+    {% for k, v in annotations.items() %}
+      {{ k }}: {{ v }}
+    {% endfor %}
+  {% endif %}
+spec:
+  replicas: {{ replicas }}
+  selector:
+    matchLabels:
+      {% for k, v in labels.items() %}
+        {{ k }}: {{ v }}
+      {% endfor %}
+  template:
+    metadata:
+      labels: 
+        {% for k, v in labels.items() %}
+          {{ k }}: {{ v }}
+        {% endfor %}
+      {% if annotations %}
+      annotations: 
+        {% for k, v in annotations.items() %}
+          {{ k }}: {{ v }}
+        {% endfor %}
+      {% endif %}
+    spec:
+      {% if volumes %}
+      volumes:
+        {% for volume in volumes %}
+        - name: {{ volume.name }}
+          {% if volume.emptyDir %}
+          emptyDir:
+            {% for key, value in volume.emptyDir.items() %}
+            {{ key }}: {{ value }}
+            {% endfor %}
+          {% elif volume.persistentVolumeClaim %} 
+          persistentVolumeClaim: 
+            {% for key, value in volume.persistentVolumeClaim.items() %}
+            {{ key }}: {{ value }}
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+
+      {% set has_gpu_toleration = config.resources.requests.nvidia_gpu and config.resources.requests.nvidia_gpu > 0 %}
+      {% set has_custom_tolerations = config.tolerations and config.tolerations | length > 0 %}
+      
+      {% if has_gpu_toleration or has_custom_tolerations %}
+      tolerations:
+        {% if has_gpu_toleration %}
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+        {% endif %}
+        {% if has_custom_tolerations %}
+        {% for tol in config.tolerations %}
+          {% if tol.key %}
+        - key: {{ tol.key }} 
+          operator: {{ tol.operator }}
+          {% endif %}
+          {% if tol.operator == 'Equal' and tol.value is not none %}
+          value: {{ tol.value }}
+          {% endif %}
+          {% if tol.effect %}
+          effect: {{ tol.effect }}
+          {% endif %}
+          {% if tol.effect == 'NoExecute' and tol.tolerationSeconds is not none %}
+          tolerationSeconds: {{ tol.tolerationSeconds }}
+          {% endif %}
+        {% endfor %}
+        {% endif %}
+      {% endif %}
+      containers:
+        - name: {{ container.name | default(deploymentName + '-container') }}
+          image: {{ container.image }}
+          imagePullPolicy: IfNotPresent
+          {% if container.command %}
+          command: 
+            {{ container.command | trim | to_yaml(indent=12) }}
+          {% endif %}
+          {% if container.args %}
+          args: 
+            {% for arg in container.args %}
+              - {{ arg | string }}
+            {% endfor %}
+          {% endif %}
+          {% if container.env %}
+          env:
+          {% for var in container.env %}
+            - name: {{ var.name }}
+              value: {{ var.value }}
+          {% endfor %}
+          {% endif %}
+          ports:
+          {% for var in container.ports %}
+            - name: {{ var.name }}
+              containerPort: {{ var.containerPort }}
+          {% endfor %}
+          {% if container.resources %}
+          resources:
+            {% for section, values in container.resources.items() %}
+              {{ section }}:
+              {% for k, v in values.items() %}
+                {{ k }}: {{ v }}
+              {% endfor %}
+            {% endfor %}
+          {% endif %}
+          {% if container.volumeMounts %}
+          volumeMounts:
+            {% for var in container.volumeMounts %}
+            - name: {{ var.name }}
+              mountPath: {{ var.mountPath }}
+            {% endfor %}
+          {% endif %}
+          {% if readinessProbe %}
+          {% if container.lifecycle %}
+          lifecycle:
+            {% if container.lifecycle.postStart %}
+            postStart:
+              {% if container.lifecycle.postStart.exec %}
+              exec:
+                command: 
+                {% for cmd_part in container.lifecycle.postStart.exec.command %}
+                  - {{ cmd_part | string }}
+                {% endfor %}
+              {% endif %}
+            {% endif %}
+          {% endif %}
+          readinessProbe:
+            httpGet:
+              path: {{ livenessProbe.httpGet.path }}
+              port: {{ livenessProbe.httpGet.port }}
+              scheme: {{ livenessProbe.httpGet.scheme }}
+            initialDelaySeconds: {{ livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ livenessProbe.timeoutSeconds }}
+            successThreshold: {{ livenessProbe.successThreshold }}
+            failureThreshold: {{ livenessProbe.failureThreshold }}
+          {% endif %}
+          {% if livenessProbe %}
+          livenessProbe:
+            httpGet:
+              path: {{ livenessProbe.httpGet.path }}
+              port: {{ livenessProbe.httpGet.port }}
+              scheme: {{ livenessProbe.httpGet.scheme }}
+            initialDelaySeconds: {{ livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ livenessProbe.timeoutSeconds }}
+            successThreshold: {{ livenessProbe.successThreshold }}
+            failureThreshold: {{ livenessProbe.failureThreshold }}
+          {% endif %}

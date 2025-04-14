@@ -1,0 +1,19 @@
+name: qwen2.5:0.5b 
+namespace: default
+
+model:
+  source: ollama 
+  identifier: qwen2.5:0.5b 
+
+replicas: 1
+
+resources:
+  requests:
+    cpu: "4"   
+    memory: "4Gi" 
+
+
+backend:
+  adapter: ollama 
+  port: 11434   
+

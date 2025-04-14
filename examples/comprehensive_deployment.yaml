@@ -1,0 +1,87 @@
+# 1. Basic Deployment Metadata
+name: my-llm-service-prod          # Unique name for K8s resources (Deployment, Service, etc.)
+namespace: ai-inference-prod       # Target Kubernetes namespace (make sure it exists!)
+replicas: 2                        # Number of pod instances for scalability/HA
+
+# 2. Model Definition
+model:
+  source: huggingface              # Source type (currently 'huggingface', maybe 's3', 'local' later)
+  identifier: NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO # Hugging Face model repository ID
+
+# 3. Resource Requirements (CPU, Memory, GPU)
+resources:
+  requests:                        # Minimum resources requested for scheduling
+    cpu: "4"                       # Request 4 CPU cores
+    memory: "32Gi"                 # Request 32 Gibibytes of RAM
+    nvidia.com/gpu: 1              # Request 1 NVIDIA GPU (using the resource name format)
+  limits:                          # Maximum resources the container can use
+    # cpu: "8"                     # Optional: Limit CPU usage
+    memory: "64Gi"                 # Optional: Limit RAM usage
+    nvidia.com/gpu: 1              # Optional: Limit GPU usage
+
+# 4. Backend Serving Framework Configuration
+backend:
+  adapter: vllm                    # Choose the adapter: 'vllm' or 'ollama' (or 'tgi' when added)
+  port: 8080                       # Override the default internal port (vLLM default: 8000, Ollama: 11434)
+
+  # Adapter-specific nested configuration block
+  config:
+    # Use the key corresponding to the adapter chosen above
+    vllm_config:                          # Use 'vllm' or 'vllm_config' alias
+      # --- vLLM Specific Settings ---
+      image: "vllm/vllm-openai:v0.4.1" # Optional: Override the default vLLM image
+      dtype: bfloat16              # Data type precision (e.g., float16, bfloat16, auto)
+      gpu_memory_utilization: 0.85 # Target GPU memory usage (0.0 to 1.0)
+      tensor_parallel_size: 1      # Explicitly set TP size (or omit to let adapter default based on gpu count)
+      # quantization: awq          # Optional: Enable quantization if model supports it (e.g., awq, gptq)
+      max_model_len: 8192          # Optional: Max sequence length vLLM supports
+      trust_remote_code: true      # Required for some models like Mixtral
+      extra_args:                  # List of additional raw CLI flags for vLLM
+        - "--disable-log-stats"
+        - "--max-num-seqs=128"
+        # - "--disable-frontend-multiprocessing" # Example flag from previous query
+
+    # --- Example if using Ollama adapter ---
+    # ollama:                        # Use 'ollama' or 'ollama_config' alias
+    #   image: "ollama/ollama:0.1.32" # Optional: Override default Ollama image
+    #   num_gpu: 1                   # Optional: Number of GPU layers (maps to OLLAMA_NUM_GPU)
+    #   keep_alive: "-1"             # Optional: Keep models loaded indefinitely
+    #   models_dir: "/persistent_models" # Optional: If using PVC with a non-default mount path
+
+# 5. Persistent Model Storage (Optional)
+model_storage:
+  # Use this section if you want models cached on a Persistent Volume
+  pvc_name: llm-model-cache-pvc    # Name of an EXISTING PersistentVolumeClaim in the SAME namespace
+  # mount_path: /path/in/container # Optional: Override default mount path (defaults handled by adapter)
+  # Make sure the PVC 'llm-model-cache-pvc' exists in the 'ai-inference-prod' namespace before launching!
+
+# 6. Kubernetes Tolerations (Optional)
+tolerations:
+  # Add specific node taints your pods should tolerate
+  - key: "node-role.kubernetes.io/infra" # Example: Allow scheduling on infra nodes
+    operator: "Exists"
+    effect: "NoSchedule"
+  - key: "cloud.google.com/gke-preemptible" # Example: Tolerate GKE preemptible node taint
+    operator: "Exists"
+    effect: "NoSchedule"
+  - key: "app-status"                    # Example: Tolerate a custom taint
+    operator: "Equal"
+    value: "maintenance"
+    effect: "NoExecute"
+    tolerationSeconds: 300             # Only tolerate NoExecute for 5 minutes
+
+# 7. Custom Labels and Annotations (Optional)
+labels:
+  # Add custom labels to all created resources (Deployment, Service, Pods)
+  team: backend-ai
+  environment: production
+  cost-center: llm-project
+
+annotations:
+  # Add custom annotations
+  contact-person: "ai-team-lead@example.com"
+  deployment-tool: "forgeserve"
+  # Example: Link to monitoring dashboard
+  # prometheus.io/scrape: "true"
+  # prometheus.io/path: "/metrics"
+  # prometheus.io/port: "8000" # Match backend port if metrics exposed there

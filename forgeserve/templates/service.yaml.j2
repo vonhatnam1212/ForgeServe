@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ deploymentName }}-service
+  namespace: {{ namespace }}
+  labels:
+    {% for k, v in labels.items() %}
+      {{ k }}: {{ v }}
+    {% endfor %}
+  {% if annotations %}
+  annotations:
+    {% for k, v in annotations.items() %}
+      {{ k }}: {{ v }}
+    {% endfor %}
+  {% endif %}
+spec:
+  type: ClusterIP
+  selector: 
+    {% for k, v in labels.items() %}
+      {{ k }}: {{ v }}
+    {% endfor %}
+  ports:
+    - name: http 
+      protocol: TCP
+      port: {{ servicePort }}
+      targetPort: {{ container.ports[0].containerPort if container.ports else servicePort }} 

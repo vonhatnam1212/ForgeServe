@@ -1,0 +1,22 @@
+name: bigscience-bloom-560m-serving
+namespace: default 
+
+model:
+  source: huggingface 
+  identifier: bigscience/bloom-560m
+
+replicas: 1
+
+resources:
+
+  requests:
+    cpu: "1"         
+    memory: "4Gi"    
+
+backend:
+  adapter: vllm 
+  port: 8000    # Internal container port vLLM will listen on
+
+  
+model_storage:
+  pvc_name: llm-model-cache-pvc
