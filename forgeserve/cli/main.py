@@ -2,7 +2,7 @@ import typer
 from typing import Annotated, Optional
 
 from forgeserve import __version__
-from . import delete, launch, status, list_deployments, logs
+from . import delete, launch, status, list_deployments, logs, benchmark
 
 app = typer.Typer(
     name="forgeserve",
@@ -15,6 +15,7 @@ app.command(name="delete")(delete.delete_deployment)
 app.command(name="status")(status.get_deployment_status)
 app.command(name="list")(list_deployments.list_deployments)
 app.command(name="logs")(logs.get_deployment_logs)
+app.command(name="benchmark")(benchmark.benchmark_deployment)
 
 
 def version_callback(value: bool):

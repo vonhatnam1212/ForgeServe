@@ -1,0 +1,56 @@
+# forgeserve/templates/job.yaml.j2
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ jobName }}
+  namespace: {{ namespace }}
+  labels:
+    app.kubernetes.io/managed-by: forgeserve
+    forgeserve.io/job-type: benchmark
+    forgeserve.io/target-deployment: {{ targetDeploymentName }}
+spec:
+  completions: 1 
+  parallelism: 1 
+  backoffLimit: {{ backoffLimit | default(2) }} 
+  ttlSecondsAfterFinished: {{ ttlSecondsAfterFinished | default(300) }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: forgeserve
+        forgeserve.io/job-type: benchmark-pod
+        job-name: {{ jobName }} 
+    spec:
+      restartPolicy: Never 
+      containers:
+        - name: benchmark-client
+          image: {{ benchmarkImage }}
+          imagePullPolicy: IfNotPresent 
+          args: 
+            - --endpoint={{ endpoint }}
+            - --model-name={{ modelName }}
+            - --concurrency={{ concurrency }}
+            - --max-tokens={{ maxTokens }}
+            - --timeout={{ timeout }}
+            {% if numRequests %}
+            - --num-requests={{ numRequests }}
+            {% elif durationSeconds %}
+            - --duration-seconds={{ durationSeconds }}
+            {% endif %}
+            {% if prompt %}
+            - --prompt={{ prompt | string | replace('"', '\\"') }}
+            {% elif datasetPath %}
+            - --dataset-path={{ datasetPath }}
+            {% endif %}
+          {% if resources %}
+          resources:
+            {% if resources.requests %}
+            requests: {% for k, v in resources.requests.items() %}
+              {{ k }}: "{{ v }}"
+            {% endfor %}
+            {% endif %}
+            {% if resources.limits %}
+            limits: {% for k, v in resources.limits.items() %}
+              {{ k }}: {{ v }}
+            {% endfor %}
+            {% endif %}
+          {% endif %}

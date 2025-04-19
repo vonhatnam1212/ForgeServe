@@ -321,7 +321,8 @@ client = ForgeClient()
 *(Keep this section as before)*
 
 ## Roadmap & Future Work
-
+*   [ ] benchmark inference
+*   [ ] Add benchmark with TTFT()/TPOT(), GPU Usage, GPU utilization, Peak memory during generation
 *   [ ] TGI Adapter
 *   [ ] Advanced HPA Configuration
 *   [ ] Monitoring Integration (Prometheus)
